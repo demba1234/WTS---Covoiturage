@@ -1,18 +1,43 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { FlatList } from 'react-native';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { ActivityIndicator, FlatList } from 'react-native';
 import { AppText, Button, Card, ScreenContainer, TextField } from '@/components/ui';
+import { searchUpcomingTrips, SearchResultTrip } from '@/lib/trips';
 import { colors, spacing } from '@/theme';
-
-// Données factices en attendant la connexion à trip_occurrences via Supabase.
-const MOCK_RESULTS = [
-  { id: '1', driver: 'Moussa D.', from: 'Liberté 6', to: 'Plateau', time: '07:30', price: 1500, seatsLeft: 2 },
-  { id: '2', driver: 'Aïssatou N.', from: 'Ouakam', to: 'Point E', time: '08:00', price: 1200, seatsLeft: 1 },
-];
 
 export default function SearchScreen() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [trips, setTrips] = useState<SearchResultTrip[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await searchUpcomingTrips();
+      setTrips(results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de chargement');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const filtered = trips.filter((trip) => {
+    const labels = trip.pickupPoints.map((p) => `${p.label} ${p.address}`.toLowerCase()).join(' ');
+    const matchesFrom = from.trim() === '' || labels.includes(from.trim().toLowerCase());
+    const matchesTo = to.trim() === '' || labels.includes(to.trim().toLowerCase());
+    return matchesFrom && matchesTo;
+  });
 
   return (
     <ScreenContainer>
@@ -22,30 +47,51 @@ export default function SearchScreen() {
 
       <TextField label="Départ" value={from} onChangeText={setFrom} placeholder="Ex : Liberté 6" />
       <TextField label="Destination" value={to} onChangeText={setTo} placeholder="Ex : Plateau" />
-      <Button label="Rechercher" onPress={() => {}} style={{ marginTop: spacing.xs }} />
+      <Button label="Rechercher" onPress={load} style={{ marginTop: spacing.xs }} />
 
       <AppText variant="h3" style={{ marginTop: spacing.lg }}>
         Trajets disponibles
       </AppText>
 
-      <FlatList
-        data={MOCK_RESULTS}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xl }}
-        renderItem={({ item }) => (
-          <Card style={{ marginTop: spacing.sm }} onPress={() => router.push({ pathname: '/trip/[id]', params: { id: item.id } })}>
-            <AppText variant="bodyMedium">
-              {item.from} → {item.to}
+      {loading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+      ) : error ? (
+        <AppText variant="caption" color={colors.error} style={{ marginTop: spacing.sm }}>
+          {error}
+        </AppText>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.occurrenceId}
+          contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xl }}
+          ListEmptyComponent={
+            <AppText variant="body" color={colors.textSecondary} style={{ marginTop: spacing.sm }}>
+              Aucun trajet disponible pour le moment.
             </AppText>
-            <AppText variant="caption" color={colors.textSecondary}>
-              {item.driver} · Départ {item.time} · {item.seatsLeft} place(s) restante(s)
-            </AppText>
-            <AppText variant="bodyMedium" color={colors.gold}>
-              {item.price} FCFA
-            </AppText>
-          </Card>
-        )}
-      />
+          }
+          renderItem={({ item }) => {
+            const departure = item.pickupPoints[0];
+            const arrival = item.pickupPoints[item.pickupPoints.length - 1];
+            return (
+              <Card
+                style={{ marginTop: spacing.sm }}
+                onPress={() => router.push({ pathname: '/trip/[id]', params: { id: item.occurrenceId } })}
+              >
+                <AppText variant="bodyMedium">
+                  {departure?.label} → {arrival?.label}
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {item.driverName} · Départ {departure?.scheduled_time?.slice(0, 5)} ·{' '}
+                  {item.seatsAvailable} place(s) restante(s)
+                </AppText>
+                <AppText variant="bodyMedium" color={colors.gold}>
+                  {item.pricePerSeat} FCFA
+                </AppText>
+              </Card>
+            );
+          }}
+        />
+      )}
     </ScreenContainer>
   );
 }

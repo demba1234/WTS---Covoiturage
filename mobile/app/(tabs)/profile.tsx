@@ -24,10 +24,12 @@ export default function ProfileScreen() {
       <Card style={{ marginTop: spacing.lg }}>
         <AppText variant="bodyMedium">Devenir conducteur</AppText>
         <AppText variant="caption" color={colors.textSecondary}>
-          Publiez vos trajets et proposez des places après vérification de vos documents (CNI, permis, carte grise,
-          assurance).
+          Publiez vos trajets et proposez des places. L'upload des documents de vérification (CNI, permis, carte
+          grise, assurance) sera ajouté avant l'ouverture au public ; en attendant, ajoutez votre véhicule pour
+          tester la publication de trajets.
         </AppText>
-        <Button label="Démarrer la vérification" variant="secondary" onPress={() => {}} />
+        <Button label="Ajouter mon véhicule" variant="secondary" onPress={() => router.push('/vehicle/create')} />
+        <Button label="Publier un trajet" variant="outline" onPress={() => router.push('/trip/create')} />
       </Card>
 
       <Button label="Se déconnecter" variant="outline" onPress={handleSignOut} style={{ marginTop: spacing.xl }} />
