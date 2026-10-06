@@ -107,7 +107,7 @@ button{background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .two>*{min-width:0}
 .fld label,.fld .lab{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
-.fld input[type=text],.fld input[type=tel],.fld input[type=date],.fld input[type=time],.fld input[type=datetime-local],.fld textarea{
+.fld input[type=text],.fld input[type=email],.fld input[type=password],.fld input[type=tel],.fld input[type=date],.fld input[type=time],.fld input[type=datetime-local],.fld textarea{
   width:100%;min-width:0;background:var(--card);border:1px solid var(--field-line);border-radius:12px;padding:12px 14px;font-size:14px;color:var(--fg);-webkit-appearance:none;appearance:none}
 .fld textarea{min-height:64px;resize:vertical;display:block}
 .fld ::placeholder{color:var(--faint);opacity:1}

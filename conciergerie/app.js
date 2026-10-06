@@ -128,6 +128,7 @@ function defaults(svc){var v={};allFields(svc).forEach(function(f){v[f.id]=f.val
 var S = {
   user:{name:'Aminata Diop',first:'Aminata',initials:'AD',tel:'+221 77 000 00 00'},
   tab:'home', stack:[], cart:[], draft:{}, seq:413, unread:false,
+  auth:{mode:'login',busy:false,error:'',info:''}, gate:false, editing:false,
   requests:[
     {id:'0412',kind:'Voyage',title:'Séjour à Paris',sub:'17–24 octobre · 2 personnes',step:2,
       notes:['Lun 14h02','Vol, hôtel et transfert aéroport','En attente de votre validation',''],
@@ -146,6 +147,34 @@ var S = {
 var INIT = JSON.stringify(S);
 var app = document.getElementById('app');
 var toastTimer = null;
+
+/* ============ Supabase (étape 2 : compte et profil) ============ */
+var CFG = window.WTS_CONFIG || {};
+var sb = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
+var DEMO = !sb;
+function initialsOf(f,l){return ((f||'').charAt(0)+(l||'').charAt(0)).toUpperCase()||'?';}
+function userFrom(p,email){
+  var f=(p&&p.first_name)||'', l=(p&&p.last_name)||'';
+  return {id:p&&p.id,first:f,last:l,name:(f+' '+l).trim()||email,email:email,tel:(p&&p.tel)||'',initials:initialsOf(f,l)};
+}
+function authError(m){
+  m=String(m||'');
+  if(/invalid login/i.test(m))return 'Email ou mot de passe incorrect.';
+  if(/already registered|already been registered/i.test(m))return 'Un compte existe déjà avec cet email.';
+  if(/at least 6|weak/i.test(m))return 'Le mot de passe doit contenir au moins 6 caractères.';
+  if(/not confirmed/i.test(m))return 'Confirmez d’abord votre email (lien reçu par message).';
+  if(/rate limit|too many/i.test(m))return 'Trop de tentatives. Réessayez dans quelques minutes.';
+  if(/fetch|network/i.test(m))return 'Connexion impossible. Vérifiez votre réseau.';
+  return 'Une erreur est survenue. Réessayez.';
+}
+function loadProfile(session){
+  return sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle().then(function(r){
+    if(r.error)throw r.error;
+    S.user=userFrom(r.data||{id:session.user.id},session.user.email);
+    S.requests=[];S.chat=[{day:'Aujourd’hui'}];S.cart=[];S.draft={};S.gate=false;
+  });
+}
 
 /* ============ Navigation ============ */
 function top(){return S.stack[S.stack.length-1]||null;}
@@ -176,7 +205,7 @@ function reqCard(r,inverse){
 
 function vHome(){
   var cur=S.requests.filter(function(r){return r.step===2;})[0]||S.requests.filter(function(r){return r.step<3;})[0];
-  return '<div class="top"><span class="brand">WTS CONCIERGERIE<span class="demo">DÉMO</span></span>'+cartLink()+'</div>'+
+  return '<div class="top"><span class="brand">WTS CONCIERGERIE'+(DEMO?'<span class="demo">DÉMO</span>':'')+'</span>'+cartLink()+'</div>'+
   '<div class="scroll"><div class="pad" style="padding-top:20px">'+
     '<div class="date">'+esc(today())+'</div>'+
     '<h1 class="display d44" style="margin-top:8px">À votre<br>service, '+esc(S.user.first)+'.</h1></div>'+
@@ -318,17 +347,49 @@ function vMessages(){
 }
 
 function vProfile(){
-  return '<div class="top"><span class="brand">WTS CONCIERGERIE</span>'+cartLink()+'</div>'+
-    '<div class="scroll"><div class="pad" style="padding-top:26px"><div class="eyebrow">Profil</div><h1 class="display d36" style="margin-top:8px">'+esc(S.user.name)+'</h1></div>'+
-    '<div class="pad" style="margin-top:22px"><div class="kv"><div><span class="k">Téléphone</span><span class="v">'+S.user.tel+'</span></div>'+
+  var u=S.user, head='<div class="top"><span class="brand">WTS CONCIERGERIE</span>'+cartLink()+'</div>';
+  if(S.editing){
+    return head+'<div class="scroll"><div class="pad" style="padding-top:26px"><div class="eyebrow">Profil</div><h1 class="display d36" style="margin-top:8px">Modifier</h1></div>'+
+      '<form class="form" id="profile-form" novalidate><div class="two"><div class="fld"><label for="p-first">Prénom *</label><input type="text" id="p-first" value="'+esc(u.first)+'"></div>'+
+      '<div class="fld"><label for="p-last">Nom *</label><input type="text" id="p-last" value="'+esc(u.last)+'"></div></div>'+
+      '<div class="fld"><label for="p-tel">Téléphone *</label><input type="tel" id="p-tel" inputmode="tel" value="'+esc(u.tel)+'"></div>'+
+      '<div class="msg" id="auth-msg" role="alert" style="display:'+(S.auth.error?'block':'none')+'">'+esc(S.auth.error)+'</div></form></div>'+
+      '<div class="foot"><button class="cta" data-a="save-profile"'+(S.auth.busy?' disabled':'')+'>Enregistrer</button><button class="cta ghost" data-a="cancel-edit">Annuler</button></div>';
+  }
+  return head+
+    '<div class="scroll"><div class="pad" style="padding-top:26px"><div class="eyebrow">Profil</div><h1 class="display d36" style="margin-top:8px">'+esc(u.name)+'</h1></div>'+
+    '<div class="pad" style="margin-top:22px"><div class="kv">'+(DEMO?'':'<div><span class="k">Email</span><span class="v">'+esc(u.email)+'</span></div>')+
+    '<div><span class="k">Téléphone</span><span class="v">'+esc(u.tel)+'</span></div>'+
     '<div><span class="k">Concierge attitré</span><span class="v">Antoine</span></div>'+
     '<div><span class="k">Demandes</span><span class="v">'+S.requests.length+'</span></div></div></div>'+
-    '<div class="pad" style="margin-top:22px"><div class="note"><b>Prototype cliquable</b><span>Le profil, les demandes et les réponses d’Antoine sont des exemples. Rien n’est réellement envoyé ni facturé.</span></div></div>'+
-    '<div style="padding:24px 20px 22px;margin-top:auto"><button class="cta ghost" data-a="reset">Réinitialiser la démo</button></div></div>'+tabs();
+    (DEMO?'<div class="pad" style="margin-top:22px"><div class="note"><b>Prototype cliquable</b><span>Le profil, les demandes et les réponses d’Antoine sont des exemples. Rien n’est réellement envoyé ni facturé.</span></div></div>':'')+
+    '<div style="padding:24px 20px 22px;margin-top:auto;display:flex;flex-direction:column;gap:8px">'+
+    (DEMO?'<button class="cta ghost" data-a="reset">Réinitialiser la démo</button>':'<button class="cta ghost" data-a="edit-profile">Modifier mon profil</button><button class="cta ghost" data-a="logout">Se déconnecter</button>')+
+    '</div></div>'+tabs();
+}
+
+function vAuth(){
+  var A=S.auth, su=A.mode==='signup';
+  function inp(id,label,type,ph,extra){return '<div class="fld"><label for="'+id+'">'+label+'</label><input type="'+type+'" id="'+id+'" name="'+id+'" placeholder="'+ph+'" '+(extra||'')+'></div>';}
+  return '<div class="top"><span></span><span class="brand">WTS CONCIERGERIE</span></div>'+
+    '<div class="scroll"><div class="pad" style="padding-top:28px"><div class="eyebrow">'+(su?'Nouveau compte':'Connexion')+'</div>'+
+    '<h1 class="display d44" style="margin-top:10px">'+(su?'Bienvenue.':'Bon retour.')+'</h1>'+
+    '<div class="sub" style="font-size:13px;margin-top:10px">'+(su?'Créez votre compte pour confier vos demandes à Antoine.':'Connectez-vous pour retrouver vos demandes.')+'</div></div>'+
+    '<form class="form" id="auth-form" novalidate>'+
+    (su?'<div class="two">'+inp('a-first','Prénom *','text','Aminata','autocomplete="given-name"')+inp('a-last','Nom *','text','Diop','autocomplete="family-name"')+'</div>'+
+        inp('a-tel','Téléphone *','tel','+221 77 000 00 00','autocomplete="tel" inputmode="tel"'):'')+
+    inp('a-email','Email *','email','vous@exemple.com','autocomplete="email" inputmode="email"')+
+    inp('a-pass','Mot de passe *','password',su?'6 caractères minimum':'Votre mot de passe','autocomplete="'+(su?'new-password':'current-password')+'"')+
+    '<div class="msg" id="auth-msg" role="alert" style="display:'+(A.error?'block':'none')+'">'+esc(A.error)+'</div>'+
+    (A.info?'<div class="note"><b>'+esc(A.info)+'</b></div>':'')+
+    '</form></div>'+
+    '<div class="foot"><button class="cta" data-a="auth-submit"'+(A.busy?' disabled':'')+'>'+(A.busy?'Un instant…':(su?'Créer mon compte':'Se connecter'))+'</button>'+
+    '<button class="cta ghost" data-a="auth-mode">'+(su?'J’ai déjà un compte':'Créer un compte')+'</button></div>';
 }
 
 function render(){
   var t=top(), h;
+  if(S.gate){app.innerHTML=vAuth()+'<div class="toast" role="status" aria-live="polite"></div>';return;}
   if(t){h={cat:vCat,form:vForm,cart:vCart,done:vDone,req:vReq}[t.screen](t.p);}
   else{h={home:vHome,requests:vRequests,messages:vMessages,profile:vProfile}[S.tab]();}
   app.innerHTML=h+'<div class="toast" role="status" aria-live="polite"></div>';
@@ -437,6 +498,14 @@ app.addEventListener('click',function(e){
       antoine('C’est noté. Je retiens '+m.opts[oi].t+' pour deux personnes jusqu’à 18h.');
       break;
     case 'reset': S=JSON.parse(INIT);render();toast('Démo réinitialisée');break;
+    case 'auth-mode': S.auth={mode:S.auth.mode==='login'?'signup':'login',busy:false,error:'',info:''};render();break;
+    case 'auth-submit': doAuth();break;
+    case 'edit-profile': S.editing=true;S.auth.error='';render();break;
+    case 'cancel-edit': S.editing=false;S.auth.error='';render();break;
+    case 'save-profile': saveProfile();break;
+    case 'logout':
+      sb.auth.signOut().then(function(){S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
+      break;
   }
 });
 
@@ -454,8 +523,43 @@ app.addEventListener('change',function(e){
   var box=el.closest('.fld');box.classList.remove('bad');
   box.querySelector('[data-fname]').textContent=name?name+' · modifier':'Ajouter une photo ou un PDF';
 });
+function val(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+function showErr(m){S.auth.error=m;var el=document.getElementById('auth-msg');if(el){el.textContent=m;el.style.display=m?'block':'none';}}
+function busy(on){S.auth.busy=on;var b=app.querySelector('[data-a="auth-submit"],[data-a="save-profile"]');if(b)b.disabled=on;}
+function doAuth(){
+  if(S.auth.busy)return;
+  var su=S.auth.mode==='signup', email=val('a-email'), pass=document.getElementById('a-pass').value;
+  var first=val('a-first'), last=val('a-last'), tel=val('a-tel');
+  if(su&&(!first||!last))return showErr('Renseignez votre prénom et votre nom.');
+  if(su&&tel.replace(/\D/g,'').length<9)return showErr('Numéro incomplet. Exemple : +221 77 000 00 00');
+  if(!/^\S+@\S+\.\S+$/.test(email))return showErr('Adresse email invalide.');
+  if(!pass)return showErr('Saisissez votre mot de passe.');
+  if(su&&pass.length<6)return showErr('Le mot de passe doit contenir au moins 6 caractères.');
+  showErr('');busy(true);
+  var p=su?sb.auth.signUp({email:email,password:pass,options:{data:{first_name:first,last_name:last,tel:tel}}})
+          :sb.auth.signInWithPassword({email:email,password:pass});
+  p.then(function(r){
+    if(r.error)throw r.error;
+    if(!r.data.session){S.auth.busy=false;S.auth.mode='login';S.auth.error='';S.auth.info='Compte créé. Confirmez votre email puis connectez-vous.';render();return;}
+    return loadProfile(r.data.session).then(function(){S.auth.busy=false;render();});
+  }).catch(function(err){busy(false);showErr(authError(err&&err.message));});
+}
+function saveProfile(){
+  if(S.auth.busy)return;
+  var first=val('p-first'), last=val('p-last'), tel=val('p-tel');
+  if(!first||!last)return showErr('Renseignez votre prénom et votre nom.');
+  if(tel.replace(/\D/g,'').length<9)return showErr('Numéro incomplet. Exemple : +221 77 000 00 00');
+  showErr('');busy(true);
+  sb.from('profiles').update({first_name:first,last_name:last,tel:tel}).eq('id',S.user.id).select().single().then(function(r){
+    if(r.error)throw r.error;
+    S.user=userFrom(r.data,S.user.email);S.editing=false;S.auth.busy=false;render();toast('Profil enregistré');
+  }).catch(function(err){busy(false);showErr(authError(err&&err.message));});
+}
+
 app.addEventListener('submit',function(e){
   e.preventDefault();
+  if(e.target.id==='auth-form'){doAuth();return;}
+  if(e.target.id==='profile-form'){saveProfile();return;}
   if(e.target.id==='svc-form'){var b=app.querySelector('[data-a="submit"]');if(b)b.click();return;}
   if(e.target.id!=='compose')return;
   var inp=document.getElementById('chat-input'), t=inp.value.trim();
@@ -465,7 +569,14 @@ app.addEventListener('submit',function(e){
   antoine('Bien reçu, '+S.user.first+'. Je m’en occupe et je reviens vers vous.');
 });
 
-render();
+if(DEMO){render();}
+else{
+  document.querySelector('.stage-note').textContent='WTS Conciergerie';
+  sb.auth.getSession().then(function(r){
+    if(r.data&&r.data.session)return loadProfile(r.data.session);
+    S.gate=true;
+  }).catch(function(){S.gate=true;}).then(render);
+}
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
