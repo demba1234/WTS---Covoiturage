@@ -34,3 +34,12 @@ Crée les demandes, le panier et le dépôt privé `documents` (copie du passepo
 Exécuter `supabase/step5-messages.sql` (après `step4-suivi.sql`).
 Le client écrit à Antoine depuis l'onglet Messages. Antoine répond depuis `/concierge.html` (filtre « Messages », ou en bas de chaque demande),
 avec la possibilité de proposer des options que le client « retient ». Pastille « Nouveau » côté Antoine, point sur l'onglet côté client, mise à jour en direct.
+
+## Étape 6 : mise en ligne
+
+Hébergé sur Vercel (projet `wts-conciergerie`) : https://wts-conciergerie.vercel.app (espace concierge : `/concierge`).
+Le projet Vercel est relié au dépôt, dossier `conciergerie/`. Pour changer de branche de production : Vercel > Settings > Git.
+La bibliothèque Supabase est hébergée avec l'app (`vendor/supabase.js`, v2.117.2), sans CDN externe.
+Pour activer les vrais comptes en ligne : renseigner `config.js` (URL et clé anon Supabase), pousser, Vercel redéploie.
+
+Installation sur téléphone : Android (Chrome) bouton « Installer » dans Profil ; iPhone (Safari) Partager > Sur l'écran d'accueil.
