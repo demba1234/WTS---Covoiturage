@@ -386,6 +386,20 @@ function vMessages(){
     '<form class="compose" id="compose"><label class="sr" for="chat-input">Votre message</label><input id="chat-input" type="text" autocomplete="off" placeholder="Écrire à Antoine…" maxlength="2000"><button type="submit" aria-label="Envoyer">↑</button></form>'+tabs();
 }
 
+/* ============ Installation sur l'écran d'accueil ============ */
+var installEvt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;if(!top()&&S.tab==='profile'&&!S.gate)render();});
+window.addEventListener('appinstalled',function(){installEvt=null;});
+function isStandalone(){return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}
+function installBox(){
+  if(isStandalone())return '';
+  var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  var body=installEvt?'<span>Ajoutez WTS Conciergerie à votre écran d’accueil pour l’ouvrir comme une application.</span>'
+    :(ios?'<span>Dans Safari, touchez <b style="display:inline">Partager</b> puis <b style="display:inline">Sur l’écran d’accueil</b>.</span>'
+    :'<span>Dans le menu de votre navigateur, choisissez « Installer l’application » ou « Ajouter à l’écran d’accueil ».</span>');
+  return '<div class="pad" style="margin-top:22px"><div class="note"><b>Installer l’application</b>'+body+
+    (installEvt?'<button class="cta" style="margin-top:12px;padding:12px" data-a="install">Installer</button>':'')+'</div></div>';
+}
 function vProfile(){
   var u=S.user, head='<div class="top"><span class="brand">WTS CONCIERGERIE</span>'+cartLink()+'</div>';
   if(S.editing){
@@ -402,6 +416,7 @@ function vProfile(){
     '<div><span class="k">Téléphone</span><span class="v">'+esc(u.tel)+'</span></div>'+
     '<div><span class="k">Concierge attitré</span><span class="v">Antoine</span></div>'+
     '<div><span class="k">Demandes</span><span class="v">'+S.requests.length+'</span></div></div></div>'+
+    installBox()+
     (DEMO?'<div class="pad" style="margin-top:22px"><div class="note"><b>Prototype cliquable</b><span>Le profil, les demandes et les réponses d’Antoine sont des exemples. Rien n’est réellement envoyé ni facturé.</span></div></div>':'')+
     '<div style="padding:24px 20px 22px;margin-top:auto;display:flex;flex-direction:column;gap:8px">'+
     (DEMO?'<button class="cta ghost" data-a="reset">Réinitialiser la démo</button>':'<button class="cta ghost" data-a="edit-profile">Modifier mon profil</button><button class="cta ghost" data-a="logout">Se déconnecter</button>')+
@@ -645,6 +660,7 @@ app.addEventListener('click',function(e){
       m.held=oi;render();
       antoine('C’est noté. Je retiens '+m.opts[oi].t+' pour deux personnes jusqu’à 18h.');
       break;
+    case 'install': if(installEvt){var ev=installEvt;installEvt=null;ev.prompt();render();}break;
     case 'reset': S=JSON.parse(INIT);render();toast('Démo réinitialisée');break;
     case 'auth-mode': S.auth={mode:S.auth.mode==='login'?'signup':'login',busy:false,error:'',info:''};render();break;
     case 'auth-submit': doAuth();break;

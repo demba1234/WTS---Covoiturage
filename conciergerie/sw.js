@@ -1,6 +1,6 @@
 /* Service worker : l'app s'ouvre hors ligne (coque uniquement). */
-var CACHE = 'wts-conciergerie-v2';
-var SHELL = ['./','index.html','style.css','app.js','config.js','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png'];
+var CACHE = 'wts-conciergerie-v3';
+var SHELL = ['./','index.html','style.css','app.js','config.js','vendor/supabase.js','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png'];
 
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(SHELL);}).then(function(){return self.skipWaiting();}));
