@@ -15,3 +15,8 @@ Sur téléphone : ouvrir l'adresse dans Safari (iPhone) ou Chrome (Android), pui
 4. Project Settings > API : copier l'URL et la clé `anon` dans `config.js`.
 
 Sans `config.js` rempli, l'app reste en mode démo (données d'exemple).
+
+## Étape 3 : demandes et panier enregistrés
+
+Dans Supabase > SQL Editor, exécuter `supabase/step3-demandes.sql` (après `schema.sql`).
+Crée les demandes, le panier et le dépôt privé `documents` (copie du passeport).
