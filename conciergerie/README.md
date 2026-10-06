@@ -20,3 +20,11 @@ Sans `config.js` rempli, l'app reste en mode démo (données d'exemple).
 
 Dans Supabase > SQL Editor, exécuter `supabase/step3-demandes.sql` (après `schema.sql`).
 Crée les demandes, le panier et le dépôt privé `documents` (copie du passeport).
+
+## Étape 4 : suivi réel et espace concierge
+
+1. Exécuter `supabase/step4-suivi.sql` dans le SQL Editor (après `step3-demandes.sql`).
+2. Antoine crée son compte dans l'app comme un client, puis on le promeut (une seule fois, dans le SQL Editor) :
+   `update public.profiles set role = 'concierge' where id = (select id from auth.users where email = 'antoine@exemple.com');`
+3. Antoine ouvre `/concierge.html`, se connecte, choisit une demande, change le statut, écrit ses messages et sa proposition.
+   Le client voit le changement en direct (temps réel, avec un rafraîchissement automatique de secours toutes les 30 s).

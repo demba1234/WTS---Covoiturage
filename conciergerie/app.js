@@ -158,6 +158,35 @@ function userFrom(p,email){
   var f=(p&&p.first_name)||'', l=(p&&p.last_name)||'';
   return {id:p&&p.id,first:f,last:l,name:(f+' '+l).trim()||email,email:email,tel:(p&&p.tel)||'',initials:initialsOf(f,l)};
 }
+/* ============ Suivi en direct : le statut vient de la base, Antoine le fait avancer ============ */
+var rt=null, pollTimer=null;
+function onVisible(){if(document.visibilityState==='visible')refreshRequests();}
+function startLive(){
+  if(DEMO||rt)return;
+  rt=sb.channel('mes-demandes').on('postgres_changes',{event:'*',schema:'public',table:'requests'},function(){refreshRequests();}).subscribe();
+  pollTimer=setInterval(refreshRequests,CFG.POLL_MS||30000);   /* filet de sécurité si le temps réel est coupé */
+  document.addEventListener('visibilitychange',onVisible);
+}
+function stopLive(){
+  if(rt){sb.removeChannel(rt);rt=null;}
+  clearInterval(pollTimer);pollTimer=null;
+  document.removeEventListener('visibilitychange',onVisible);
+}
+function refreshRequests(){
+  if(DEMO||S.gate||S.refreshing)return;
+  S.refreshing=true;
+  api.listRequests().then(function(list){
+    S.refreshing=false;
+    if(S.gate||JSON.stringify(list)===JSON.stringify(S.requests))return;
+    var old={};S.requests.forEach(function(r){old[r.id]=r.step;});
+    var changed=list.filter(function(r){return old[r.id]!==undefined&&old[r.id]!==r.step;});
+    S.requests=list;
+    var t=top();
+    if(changed.length&&!(S.tab==='requests'||(t&&t.screen==='req')))S.reqDot=true;
+    if(!(t&&t.screen==='form')&&!S.editing&&!S.busy)render();
+    if(changed.length)toast('Demande Nº '+changed[0].id+' : '+STATUS[changed[0].step]);
+  }).catch(function(){S.refreshing=false;});
+}
 function authError(m){
   m=String(m||'');
   if(/invalid login/i.test(m))return 'Email ou mot de passe incorrect.';
@@ -173,14 +202,14 @@ function loadProfile(session){
     if(r.error)throw r.error;
     S.user=userFrom(r.data||{id:session.user.id},session.user.email);
     S.chat=[{day:'Aujourd’hui'}];S.draft={};S.gate=false;
-    return Promise.all([api.listRequests(),api.listCart()]).then(function(r){S.requests=r[0];S.cart=r[1];});
+    return Promise.all([api.listRequests(),api.listCart()]).then(function(r){S.requests=r[0];S.cart=r[1];startLive();});
   });
 }
 
 /* ============ Navigation ============ */
 function top(){return S.stack[S.stack.length-1]||null;}
-function go(tab){S.tab=tab;S.stack=[];if(tab==='messages')S.unread=false;render();}
-function push(screen,params){S.stack.push({screen:screen,p:params||{}});render();}
+function go(tab){S.tab=tab;S.stack=[];if(tab==='messages')S.unread=false;if(tab==='requests')S.reqDot=false;render();}
+function push(screen,params){if(screen==='req')S.reqDot=false;S.stack.push({screen:screen,p:params||{}});render();}
 function back(){S.stack.pop();render();}
 function toast(t){
   var el=app.querySelector('.toast');if(!el)return;
@@ -193,7 +222,8 @@ function tabs(){
   var items=[['home','Accueil'],['requests','Demandes'],['messages','Messages'],['profile','Profil']];
   return '<nav class="tabs" aria-label="Navigation principale">'+items.map(function(i){
     return '<button class="tab" data-a="tab" data-v="'+i[0]+'"'+(S.tab===i[0]?' aria-current="page"':'')+'>'+i[1]+
-      (i[0]==='messages'&&S.unread?'<span class="dot" aria-label="Nouveau message"></span>':'')+'</button>';
+      (i[0]==='messages'&&S.unread?'<span class="dot" aria-label="Nouveau message"></span>':'')+
+      (i[0]==='requests'&&S.reqDot?'<span class="dot" aria-label="Demande mise à jour"></span>':'')+'</button>';
   }).join('')+'</nav>';
 }
 function cartLink(){return '<button class="link" data-a="open-cart">Panier'+(S.cart.length?' · '+S.cart.length:'')+'</button>';}
@@ -581,7 +611,7 @@ app.addEventListener('click',function(e){
     case 'cancel-edit': S.editing=false;S.auth.error='';render();break;
     case 'save-profile': saveProfile();break;
     case 'logout':
-      sb.auth.signOut().then(function(){S.requests=[];S.cart=[];FILES={};S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
+      stopLive();sb.auth.signOut().then(function(){S.reqDot=false;S.requests=[];S.cart=[];FILES={};S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
       break;
   }
 });
