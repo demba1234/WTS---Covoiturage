@@ -163,7 +163,8 @@ var rt=null, pollTimer=null;
 function onVisible(){if(document.visibilityState==='visible')refreshRequests();}
 function startLive(){
   if(DEMO||rt)return;
-  rt=sb.channel('mes-demandes').on('postgres_changes',{event:'*',schema:'public',table:'requests'},function(){refreshRequests();}).subscribe();
+  rt=sb.channel('mes-donnees').on('postgres_changes',{event:'*',schema:'public',table:'requests'},function(){refreshRequests();})
+    .on('postgres_changes',{event:'*',schema:'public',table:'messages'},function(){refreshRequests();}).subscribe();
   pollTimer=setInterval(refreshRequests,CFG.POLL_MS||30000);   /* filet de sécurité si le temps réel est coupé */
   document.addEventListener('visibilitychange',onVisible);
 }
@@ -175,16 +176,22 @@ function stopLive(){
 function refreshRequests(){
   if(DEMO||S.gate||S.refreshing)return;
   S.refreshing=true;
-  api.listRequests().then(function(list){
+  Promise.all([api.listRequests(),api.listMessages()]).then(function(res){
     S.refreshing=false;
-    if(S.gate||JSON.stringify(list)===JSON.stringify(S.requests))return;
+    if(S.gate)return;
+    var list=res[0], msgs=res[1], reqSame=JSON.stringify(list)===JSON.stringify(S.requests), msgSame=JSON.stringify(msgs)===JSON.stringify(S.msgs);
+    if(reqSame&&msgSame)return;
     var old={};S.requests.forEach(function(r){old[r.id]=r.step;});
     var changed=list.filter(function(r){return old[r.id]!==undefined&&old[r.id]!==r.step;});
-    S.requests=list;
-    var t=top();
+    var oldN=(S.msgs||[]).filter(function(m){return m.sender==='concierge';}).length;
+    var newN=msgs.filter(function(m){return m.sender==='concierge';}).length;
+    S.requests=list;setMsgs(msgs);
+    var t=top(), onMsgs=S.tab==='messages'&&!t;
     if(changed.length&&!(S.tab==='requests'||(t&&t.screen==='req')))S.reqDot=true;
+    if(newN>oldN){if(onMsgs)api.markRead().catch(function(){});else S.unread=true;}
     if(!(t&&t.screen==='form')&&!S.editing&&!S.busy)render();
-    if(changed.length)toast('Demande Nº '+changed[0].id+' : '+STATUS[changed[0].step]);
+    if(newN>oldN&&!onMsgs)toast('Antoine vous a écrit');
+    else if(changed.length)toast('Demande Nº '+changed[0].id+' : '+STATUS[changed[0].step]);
   }).catch(function(){S.refreshing=false;});
 }
 function authError(m){
@@ -201,14 +208,16 @@ function loadProfile(session){
   return sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle().then(function(r){
     if(r.error)throw r.error;
     S.user=userFrom(r.data||{id:session.user.id},session.user.email);
-    S.chat=[{day:'Aujourd’hui'}];S.draft={};S.gate=false;
-    return Promise.all([api.listRequests(),api.listCart()]).then(function(r){S.requests=r[0];S.cart=r[1];startLive();});
+    S.chat=[];S.draft={};S.gate=false;
+    return Promise.all([api.listRequests(),api.listCart(),api.listMessages()]).then(function(r){
+      S.requests=r[0];S.cart=r[1];setMsgs(r[2]);S.unread=unreadFrom(r[2]);startLive();
+    });
   });
 }
 
 /* ============ Navigation ============ */
 function top(){return S.stack[S.stack.length-1]||null;}
-function go(tab){S.tab=tab;S.stack=[];if(tab==='messages')S.unread=false;if(tab==='requests')S.reqDot=false;render();}
+function go(tab){S.tab=tab;S.stack=[];if(tab==='messages'){if(S.unread&&!DEMO)api.markRead().catch(function(){});S.unread=false;}if(tab==='requests')S.reqDot=false;render();}
 function push(screen,params){if(screen==='req')S.reqDot=false;S.stack.push({screen:screen,p:params||{}});render();}
 function back(){S.stack.pop();render();}
 function toast(t){
@@ -371,11 +380,10 @@ function vMessages(){
       return '<div class="opt"><div><div class="t">'+esc(o.t)+'</div><div class="d">'+esc(o.d)+'</div></div>'+
         '<button data-a="hold" data-v="'+mi+':'+oi+'" aria-pressed="'+on+'">'+(on?'Retenu ✓':'Retenir')+'</button></div>';}).join('')+'</div>';
   }).join('');
-  return '<div class="chat-h"><span class="avatar md"></span><div style="flex:1;min-width:0"><div class="n">Antoine</div><div class="s">Répond en 2 min environ</div></div><span class="brand-sm">WTS CONCIERGERIE</span></div>'+
-    '<div class="thread" id="thread">'+msgs+'</div>'+
+  return '<div class="chat-h"><span class="avatar md"></span><div style="flex:1;min-width:0"><div class="n">Antoine</div><div class="s">'+(DEMO?'Répond en 2 min environ':'Votre concierge')+'</div></div><span class="brand-sm">WTS CONCIERGERIE</span></div>'+
+    '<div class="thread" id="thread">'+(msgs||(DEMO?'':'<p class="empty">Écrivez à Antoine : il vous répond ici.</p>'))+'</div>'+
     '<div class="quick"><button data-a="open-svc" data-v="visas">Visa</button><button data-a="open-svc" data-v="livraisons">Livraison</button><button data-a="open-cat" data-v="assistance">Assistance</button><button data-a="open-svc" data-v="billetterie">Billet d’avion</button></div>'+
-    (DEMO?'':'<div class="note" style="margin:0 14px 12px"><b>Messagerie bientôt disponible</b><span>Pour l’instant, Antoine traite directement vos demandes : suivez-les dans l’onglet Demandes.</span></div>')+
-    (!DEMO?'':'<form class="compose" id="compose"><label class="sr" for="chat-input">Votre message</label><input id="chat-input" type="text" autocomplete="off" placeholder="Écrire à Antoine…"><button type="submit" aria-label="Envoyer">↑</button></form>')+tabs();
+    '<form class="compose" id="compose"><label class="sr" for="chat-input">Votre message</label><input id="chat-input" type="text" autocomplete="off" placeholder="Écrire à Antoine…" maxlength="2000"><button type="submit" aria-label="Envoyer">↑</button></form>'+tabs();
 }
 
 function vProfile(){
@@ -424,8 +432,10 @@ function render(){
   if(S.gate){app.innerHTML=vAuth()+'<div class="toast" role="status" aria-live="polite"></div>';return;}
   if(t){h={cat:vCat,form:vForm,cart:vCart,done:vDone,req:vReq}[t.screen](t.p);}
   else{h={home:vHome,requests:vRequests,messages:vMessages,profile:vProfile}[S.tab]();}
+  var ci=document.getElementById('chat-input'), keep=ci?{v:ci.value,f:document.activeElement===ci}:null;
   app.innerHTML=h+'<div class="toast" role="status" aria-live="polite"></div>';
   var th=document.getElementById('thread');if(th)th.scrollTop=th.scrollHeight;
+  var ni=document.getElementById('chat-input');if(keep&&ni){ni.value=keep.v;if(keep.f)ni.focus();}
 }
 
 /* ============ Actions ============ */
@@ -529,7 +539,32 @@ var sbApi={
     return Promise.all(jobs);
   }
 };
+sbApi.listMessages=function(){return sb.from('messages').select('*').order('num',{ascending:true}).then(must);};
+sbApi.sendMessage=function(body){return sb.from('messages').insert({sender:'client',body:body}).select().single().then(must);};
+sbApi.hold=function(id,idx){return sb.rpc('hold_option',{p_msg:id,p_idx:idx}).then(must);};
+sbApi.markRead=function(){return sb.rpc('mark_read').then(function(r){if(r.error)throw r.error;});};
+demoApi.listMessages=function(){return Promise.resolve([]);};
 var api = DEMO ? demoApi : sbApi;
+
+/* Conversation réelle -> format d'affichage (jours, bulles, options) */
+function dayLabel(iso){
+  var d=new Date(iso), n=new Date(), y=new Date(n.getTime()-864e5);
+  if(d.toDateString()===n.toDateString())return 'Aujourd’hui';
+  if(d.toDateString()===y.toDateString())return 'Hier';
+  return d.getDate()+' '+MOIS[d.getMonth()];
+}
+function buildChat(rows){
+  var out=[], last='';
+  rows.forEach(function(m){
+    var dl=dayLabel(m.created_at); if(dl!==last){out.push({day:dl});last=dl;}
+    if(m.sender==='client'){out.push({me:m.body});return;}
+    if(m.body)out.push({him:m.body});
+    if(m.options&&m.options.length)out.push({opts:m.options,held:m.held==null?null:m.held,mid:m.id});
+  });
+  return out;
+}
+function unreadFrom(rows){return rows.some(function(m){return m.sender==='concierge'&&!m.read_at;});}
+function setMsgs(rows){S.msgs=rows;S.chat=buildChat(rows);}
 function sendError(){toast('Envoi impossible. Vérifiez votre réseau et réessayez.');}
 function antoine(text,delay){
   setTimeout(function(){
@@ -600,7 +635,13 @@ app.addEventListener('click',function(e){
       break;
     case 'hold':
       var p=v.split(':'), m=S.chat[parseInt(p[0],10)], oi=parseInt(p[1],10);
-      if(m.held===oi)break;
+      if(m.held===oi||S.busy)break;
+      if(!DEMO){
+        S.busy=true;
+        api.hold(m.mid,oi).then(function(){return api.listMessages();}).then(function(rows){S.busy=false;setMsgs(rows);render();})
+          .catch(function(){S.busy=false;sendError();});
+        break;
+      }
       m.held=oi;render();
       antoine('C’est noté. Je retiens '+m.opts[oi].t+' pour deux personnes jusqu’à 18h.');
       break;
@@ -611,7 +652,7 @@ app.addEventListener('click',function(e){
     case 'cancel-edit': S.editing=false;S.auth.error='';render();break;
     case 'save-profile': saveProfile();break;
     case 'logout':
-      stopLive();sb.auth.signOut().then(function(){S.reqDot=false;S.requests=[];S.cart=[];FILES={};S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
+      stopLive();sb.auth.signOut().then(function(){S.reqDot=false;S.msgs=[];S.chat=[];S.unread=false;S.requests=[];S.cart=[];FILES={};S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
       break;
   }
 });
@@ -672,6 +713,15 @@ app.addEventListener('submit',function(e){
   if(e.target.id!=='compose')return;
   var inp=document.getElementById('chat-input'), t=inp.value.trim();
   if(!t)return;
+  if(!DEMO){
+    if(S.busy)return;
+    S.busy=true;inp.disabled=true;
+    api.sendMessage(t).then(function(row){
+      S.busy=false;setMsgs((S.msgs||[]).concat([row]));render();
+      var n=document.getElementById('chat-input');if(n)n.focus();
+    }).catch(function(){S.busy=false;inp.disabled=false;sendError();});
+    return;
+  }
   S.chat.push({me:t});render();
   var again=document.getElementById('chat-input');if(again)again.focus();
   antoine('Bien reçu, '+S.user.first+'. Je m’en occupe et je reviens vers vous.');
