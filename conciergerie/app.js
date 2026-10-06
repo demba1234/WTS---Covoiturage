@@ -107,7 +107,7 @@ var SERVICES = {
 };
 
 var CTA = {cart:'Ajouter au panier', confirm:'Confirmer la demande →', devis:'Demander un devis →'};
-var STEPS = ['Demande reçue','Antoine s’en occupe','Proposition prête','Confirmé'];
+var STEPS = ['Demande reçue','Abou s’en occupe','Proposition prête','Confirmé'];
 var STATUS = ['Reçue','En cours','À valider','Confirmé'];
 
 /* ============ Helpers ============ */
@@ -158,7 +158,7 @@ function userFrom(p,email){
   var f=(p&&p.first_name)||'', l=(p&&p.last_name)||'';
   return {id:p&&p.id,first:f,last:l,name:(f+' '+l).trim()||email,email:email,tel:(p&&p.tel)||'',initials:initialsOf(f,l)};
 }
-/* ============ Suivi en direct : le statut vient de la base, Antoine le fait avancer ============ */
+/* ============ Suivi en direct : le statut vient de la base, Abou le fait avancer ============ */
 var rt=null, pollTimer=null;
 function onVisible(){if(document.visibilityState==='visible')refreshRequests();}
 function startLive(){
@@ -190,7 +190,7 @@ function refreshRequests(){
     if(changed.length&&!(S.tab==='requests'||(t&&t.screen==='req')))S.reqDot=true;
     if(newN>oldN){if(onMsgs)api.markRead().catch(function(){});else S.unread=true;}
     if(!(t&&t.screen==='form')&&!S.editing&&!S.busy)render();
-    if(newN>oldN&&!onMsgs)toast('Antoine vous a écrit');
+    if(newN>oldN&&!onMsgs)toast('Abou vous a écrit');
     else if(changed.length)toast('Demande Nº '+changed[0].id+' : '+STATUS[changed[0].step]);
   }).catch(function(){S.refreshing=false;});
 }
@@ -210,14 +210,14 @@ function loadProfile(session){
     S.user=userFrom(r.data||{id:session.user.id},session.user.email);
     S.chat=[];S.draft={};S.gate=false;
     return Promise.all([api.listRequests(),api.listCart(),api.listMessages()]).then(function(r){
-      S.requests=r[0];S.cart=r[1];setMsgs(r[2]);S.unread=unreadFrom(r[2]);startLive();
+      S.requests=r[0];S.cart=r[1];setMsgs(r[2]);S.unread=unreadFrom(r[2]);startLive();syncPush();
     });
   });
 }
 
 /* ============ Navigation ============ */
 function top(){return S.stack[S.stack.length-1]||null;}
-function go(tab){S.tab=tab;S.stack=[];if(tab==='messages'){if(S.unread&&!DEMO)api.markRead().catch(function(){});S.unread=false;}if(tab==='requests')S.reqDot=false;render();}
+function go(tab){S.tab=tab;S.stack=[];if(tab==='profile'&&!DEMO)pushStatus().then(function(s){if(S.push!==s){S.push=s;if(!top()&&S.tab==='profile'&&!S.editing)render();}});if(tab==='messages'){if(S.unread&&!DEMO)api.markRead().catch(function(){});S.unread=false;}if(tab==='requests')S.reqDot=false;render();}
 function push(screen,params){if(screen==='req')S.reqDot=false;S.stack.push({screen:screen,p:params||{}});render();}
 function back(){S.stack.pop();render();}
 function toast(t){
@@ -250,7 +250,7 @@ function vHome(){
     '<div class="date">'+esc(today())+'</div>'+
     '<h1 class="display d44" style="margin-top:8px">À votre<br>service, '+esc(S.user.first)+'.</h1></div>'+
   '<div class="pad" style="margin-top:18px"><button class="concierge" data-a="tab" data-v="messages">'+
-    '<span class="avatar lg"></span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:600">Antoine</span>'+
+    '<span class="avatar lg"></span><span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:600">Abou</span>'+
     '<span class="avail"><i></i>Votre concierge · disponible</span></span><span class="pill-o">Écrire</span></button></div>'+
   (cur?'<div class="pad" style="margin-top:18px"><p class="group-h">En cours</p>'+reqCard(cur,true)+'</div>':'')+
   '<div class="pad home-rows" style="margin-top:18px"><div class="rows">'+CATS.map(function(c,i){
@@ -322,10 +322,10 @@ function vCart(){
   return topBack('Retour').replace(cartLink(),'<span></span>')+
     '<div class="scroll"><div class="pad" style="padding-top:22px"><div class="eyebrow">Panier</div>'+
     '<h1 class="display d36" style="margin-top:8px">'+(S.cart.length?plural(S.cart.length,'prestation','prestations'):'Votre panier<br>est vide.')+'</h1></div>'+
-    '<div class="pad stack" style="margin-top:20px">'+(items||'<p class="empty">Ajoutez un billet, un hôtel ou un transfert pour les envoyer ensemble à Antoine.</p>')+'</div>'+
+    '<div class="pad stack" style="margin-top:20px">'+(items||'<p class="empty">Ajoutez un billet, un hôtel ou un transfert pour les envoyer ensemble à Abou.</p>')+'</div>'+
     (S.cart.length?'<div class="pad" style="margin-top:18px;padding-bottom:20px"><div class="kv"><div><span class="k">Frais fixes</span><span class="v">'+(fixed?money(fixed):'Aucun')+'</span></div>'+
-      '<div><span class="k">Tarifs sur devis</span><span class="v">Confirmés par Antoine</span></div></div></div>':'')+
-    '</div><div class="foot">'+(S.cart.length?'<button class="cta" data-a="send-cart">Envoyer à Antoine</button>':'<button class="cta" data-a="open-cat" data-v="all">Faire une demande</button>')+'</div>';
+      '<div><span class="k">Tarifs sur devis</span><span class="v">Confirmés par Abou</span></div></div></div>':'')+
+    '</div><div class="foot">'+(S.cart.length?'<button class="cta" data-a="send-cart">Envoyer à Abou</button>':'<button class="cta" data-a="open-cat" data-v="all">Faire une demande</button>')+'</div>';
 }
 
 function vDone(p){
@@ -333,8 +333,8 @@ function vDone(p){
   return '<div class="top"><span></span><span class="brand-sm">WTS CONCIERGERIE</span></div>'+
     '<div class="scroll"><div class="pad" style="margin-top:auto;margin-bottom:auto;padding-block:30px"><div class="eyebrow">'+(many?plural(p.ids.length,'demande','demandes'):esc(p.label)+' · Nº '+p.ids[0])+'</div>'+
     '<h1 class="display d44" style="margin-top:10px">'+(p.devis?'Devis<br>demandé.':(many?'Demandes<br>envoyées.':'Demande<br>envoyée.'))+'</h1>'+
-    '<p style="margin:14px 0 0;color:var(--muted);max-width:30ch">'+(p.devis?'Antoine vous communique le tarif exact sous 30 minutes.':'Antoine a bien reçu votre demande et revient vers vous.')+'</p>'+
-    '<div class="concierge" style="margin-top:26px"><span class="avatar lg"></span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:600">Antoine</span><span class="avail"><i></i>Votre concierge · disponible</span></span></div>'+
+    '<p style="margin:14px 0 0;color:var(--muted);max-width:30ch">'+(p.devis?'Abou vous communique le tarif exact sous 30 minutes.':'Abou a bien reçu votre demande et revient vers vous.')+'</p>'+
+    '<div class="concierge" style="margin-top:26px"><span class="avatar lg"></span><span style="flex:1"><span style="display:block;font-size:14px;font-weight:600">Abou</span><span class="avail"><i></i>Votre concierge · disponible</span></span></div>'+
     '</div></div><div class="foot">'+
     (many?'<button class="cta" data-a="tab" data-v="requests">Voir mes demandes</button>':'<button class="cta" data-a="track" data-v="'+p.ids[0]+'">Suivre ma demande</button>')+
     '<button class="cta ghost" data-a="tab" data-v="home">Retour à l’accueil</button></div>';
@@ -367,7 +367,7 @@ function vReq(p){
     '<div class="scroll"><div class="pad" style="padding-top:20px"><div class="eyebrow">'+esc(r.kind)+' · Nº '+r.id+'</div>'+
     '<h1 class="display d36" style="margin-top:8px">'+esc(r.title)+'</h1><div class="sub" style="font-size:13px;margin-top:8px">'+esc(r.sub)+'</div></div>'+
     '<div class="pad tl" style="margin-top:26px">'+steps+'</div>'+recap+'</div>'+
-    '<div class="foot"><button class="cta ghost" data-a="tab" data-v="messages">Écrire à Antoine</button></div>';
+    '<div class="foot"><button class="cta ghost" data-a="tab" data-v="messages">Écrire à Abou</button></div>';
 }
 
 function vMessages(){
@@ -380,17 +380,59 @@ function vMessages(){
       return '<div class="opt"><div><div class="t">'+esc(o.t)+'</div><div class="d">'+esc(o.d)+'</div></div>'+
         '<button data-a="hold" data-v="'+mi+':'+oi+'" aria-pressed="'+on+'">'+(on?'Retenu ✓':'Retenir')+'</button></div>';}).join('')+'</div>';
   }).join('');
-  return '<div class="chat-h"><span class="avatar md"></span><div style="flex:1;min-width:0"><div class="n">Antoine</div><div class="s">'+(DEMO?'Répond en 2 min environ':'Votre concierge')+'</div></div><span class="brand-sm">WTS CONCIERGERIE</span></div>'+
-    '<div class="thread" id="thread">'+(msgs||(DEMO?'':'<p class="empty">Écrivez à Antoine : il vous répond ici.</p>'))+'</div>'+
+  return '<div class="chat-h"><span class="avatar md"></span><div style="flex:1;min-width:0"><div class="n">Abou</div><div class="s">'+(DEMO?'Répond en 2 min environ':'Votre concierge')+'</div></div><span class="brand-sm">WTS CONCIERGERIE</span></div>'+
+    '<div class="thread" id="thread">'+(msgs||(DEMO?'':'<p class="empty">Écrivez à Abou : il vous répond ici.</p>'))+'</div>'+
     '<div class="quick"><button data-a="open-svc" data-v="visas">Visa</button><button data-a="open-svc" data-v="livraisons">Livraison</button><button data-a="open-cat" data-v="assistance">Assistance</button><button data-a="open-svc" data-v="billetterie">Billet d’avion</button></div>'+
-    '<form class="compose" id="compose"><label class="sr" for="chat-input">Votre message</label><input id="chat-input" type="text" autocomplete="off" placeholder="Écrire à Antoine…" maxlength="2000"><button type="submit" aria-label="Envoyer">↑</button></form>'+tabs();
+    '<form class="compose" id="compose"><label class="sr" for="chat-input">Votre message</label><input id="chat-input" type="text" autocomplete="off" placeholder="Écrire à Abou…" maxlength="2000"><button type="submit" aria-label="Envoyer">↑</button></form>'+tabs();
 }
+
+/* ============ Notifications push ============ */
+function pushSupported(){return !DEMO&&!!CFG.VAPID_PUBLIC_KEY&&'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;}
+function keyBytes(b64){var p=(b64+'='.repeat((4-b64.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'),r=atob(p),o=new Uint8Array(r.length);for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o;}
+function pushReg(){return navigator.serviceWorker.ready;}
+function saveSub(sub){var j=sub.toJSON();return sb.rpc('save_push_subscription',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth}).then(function(r){if(r.error)throw r.error;});}
+function pushPref(v){try{var k='wts_push_'+(S.user&&S.user.id);if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
+function pushStatus(){
+  if(!pushSupported())return Promise.resolve(/iphone|ipad|ipod/i.test(navigator.userAgent)&&!isStandalone()&&!DEMO&&CFG.VAPID_PUBLIC_KEY?'ios':'unsupported');
+  if(Notification.permission==='denied')return Promise.resolve('denied');
+  return pushReg().then(function(r){return r.pushManager.getSubscription();}).then(function(s){return s&&Notification.permission==='granted'?'on':'off';});
+}
+function enablePush(){
+  return Notification.requestPermission().then(function(p){
+    if(p!=='granted')throw new Error('denied');
+    return pushReg();
+  }).then(function(r){return r.pushManager.getSubscription().then(function(s){return s||r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(CFG.VAPID_PUBLIC_KEY)});});}).then(saveSub).then(function(){pushPref('on');});
+}
+function disablePush(){
+  return pushReg().then(function(r){return r.pushManager.getSubscription();}).then(function(s){
+    if(!s)return;
+    return sb.from('push_subscriptions').delete().eq('endpoint',s.endpoint).then(function(){return s.unsubscribe();});
+  });
+}
+/* À la connexion : si l'appareil est déjà autorisé, on le rattache au compte courant (sans rien demander). */
+function syncPush(){
+  if(!pushSupported()||Notification.permission!=='granted'||pushPref()!=='on')return;
+  pushReg().then(function(r){return r.pushManager.getSubscription().then(function(s){return s||r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(CFG.VAPID_PUBLIC_KEY)});});}).then(saveSub).catch(function(){});
+}
+if('serviceWorker' in navigator){navigator.serviceWorker.addEventListener('message',function(e){
+  var h=e.data&&e.data.type==='nav'?String(e.data.hash||'').replace('#',''):'';
+  if(!S.gate&&{home:1,requests:1,messages:1,profile:1}[h])go(h);
+});}
 
 /* ============ Installation sur l'écran d'accueil ============ */
 var installEvt=null;
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;if(!top()&&S.tab==='profile'&&!S.gate)render();});
 window.addEventListener('appinstalled',function(){installEvt=null;});
 function isStandalone(){return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}
+function pushBox(){
+  var st=S.push, t='', btn='';
+  if(DEMO||!st||st==='unsupported')return '';
+  if(st==='on'){t='Activées sur cet appareil : vous êtes prévenu des messages d’Abou et de l’avancement de vos demandes.';btn='<button class="cta ghost" style="margin-top:12px;padding:12px" data-a="push-off">Désactiver</button>';}
+  else if(st==='off'){t='Soyez prévenu dès qu’Abou vous répond ou fait avancer une demande.';btn='<button class="cta" style="margin-top:12px;padding:12px" data-a="push-on">Activer les notifications</button>';}
+  else if(st==='denied'){t='Bloquées pour ce site. Autorisez-les dans les réglages de votre navigateur, puis revenez ici.';}
+  else if(st==='ios'){t='Sur iPhone, installez d’abord l’app sur l’écran d’accueil (Partager puis Sur l’écran d’accueil), puis rouvrez-la pour activer les notifications.';}
+  return '<div class="pad" style="margin-top:22px"><div class="note"><b>Notifications</b><span>'+t+'</span>'+btn+'</div></div>';
+}
 function installBox(){
   if(isStandalone())return '';
   var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -414,10 +456,10 @@ function vProfile(){
     '<div class="scroll"><div class="pad" style="padding-top:26px"><div class="eyebrow">Profil</div><h1 class="display d36" style="margin-top:8px">'+esc(u.name)+'</h1></div>'+
     '<div class="pad" style="margin-top:22px"><div class="kv">'+(DEMO?'':'<div><span class="k">Email</span><span class="v">'+esc(u.email)+'</span></div>')+
     '<div><span class="k">Téléphone</span><span class="v">'+esc(u.tel)+'</span></div>'+
-    '<div><span class="k">Concierge attitré</span><span class="v">Antoine</span></div>'+
+    '<div><span class="k">Concierge attitré</span><span class="v">Abou</span></div>'+
     '<div><span class="k">Demandes</span><span class="v">'+S.requests.length+'</span></div></div></div>'+
-    installBox()+
-    (DEMO?'<div class="pad" style="margin-top:22px"><div class="note"><b>Prototype cliquable</b><span>Le profil, les demandes et les réponses d’Antoine sont des exemples. Rien n’est réellement envoyé ni facturé.</span></div></div>':'')+
+    pushBox()+installBox()+
+    (DEMO?'<div class="pad" style="margin-top:22px"><div class="note"><b>Prototype cliquable</b><span>Le profil, les demandes et les réponses d’Abou sont des exemples. Rien n’est réellement envoyé ni facturé.</span></div></div>':'')+
     '<div style="padding:24px 20px 22px;margin-top:auto;display:flex;flex-direction:column;gap:8px">'+
     (DEMO?'<button class="cta ghost" data-a="reset">Réinitialiser la démo</button>':'<button class="cta ghost" data-a="edit-profile">Modifier mon profil</button><button class="cta ghost" data-a="logout">Se déconnecter</button>')+
     '</div></div>'+tabs();
@@ -429,7 +471,7 @@ function vAuth(){
   return '<div class="top"><span></span><span class="brand">WTS CONCIERGERIE</span></div>'+
     '<div class="scroll"><div class="pad" style="padding-top:28px"><div class="eyebrow">'+(su?'Nouveau compte':'Connexion')+'</div>'+
     '<h1 class="display d44" style="margin-top:10px">'+(su?'Bienvenue.':'Bon retour.')+'</h1>'+
-    '<div class="sub" style="font-size:13px;margin-top:10px">'+(su?'Créez votre compte pour confier vos demandes à Antoine.':'Connectez-vous pour retrouver vos demandes.')+'</div></div>'+
+    '<div class="sub" style="font-size:13px;margin-top:10px">'+(su?'Créez votre compte pour confier vos demandes à Abou.':'Connectez-vous pour retrouver vos demandes.')+'</div></div>'+
     '<form class="form" id="auth-form" novalidate>'+
     (su?'<div class="two">'+inp('a-first','Prénom *','text','Aminata','autocomplete="given-name"')+inp('a-last','Nom *','text','Diop','autocomplete="family-name"')+'</div>'+
         inp('a-tel','Téléphone *','tel','+221 77 000 00 00','autocomplete="tel" inputmode="tel"'):'')+
@@ -580,8 +622,9 @@ function buildChat(rows){
 }
 function unreadFrom(rows){return rows.some(function(m){return m.sender==='concierge'&&!m.read_at;});}
 function setMsgs(rows){S.msgs=rows;S.chat=buildChat(rows);}
+function pushBusy(on){S.busy=on;if(!on&&!top()&&S.tab==='profile')render();}
 function sendError(){toast('Envoi impossible. Vérifiez votre réseau et réessayez.');}
-function antoine(text,delay){
+function abou(text,delay){
   setTimeout(function(){
     S.chat.push({him:text});
     if(S.tab==='messages'&&!top())render();else{S.unread=true;if(!top())render();}
@@ -658,8 +701,11 @@ app.addEventListener('click',function(e){
         break;
       }
       m.held=oi;render();
-      antoine('C’est noté. Je retiens '+m.opts[oi].t+' pour deux personnes jusqu’à 18h.');
+      abou('C’est noté. Je retiens '+m.opts[oi].t+' pour deux personnes jusqu’à 18h.');
       break;
+    case 'push-on': pushBusy(true);enablePush().then(function(){S.push='on';pushBusy(false);toast('Notifications activées');})
+        .catch(function(err){S.push=/denied/.test(err&&err.message||'')?'denied':'off';pushBusy(false);toast(S.push==='denied'?'Notifications refusées':'Activation impossible');});break;
+    case 'push-off': pushBusy(true);disablePush().then(function(){pushPref('off');S.push='off';pushBusy(false);toast('Notifications désactivées');}).catch(function(){pushBusy(false);sendError();});break;
     case 'install': if(installEvt){var ev=installEvt;installEvt=null;ev.prompt();render();}break;
     case 'reset': S=JSON.parse(INIT);render();toast('Démo réinitialisée');break;
     case 'auth-mode': S.auth={mode:S.auth.mode==='login'?'signup':'login',busy:false,error:'',info:''};render();break;
@@ -668,7 +714,7 @@ app.addEventListener('click',function(e){
     case 'cancel-edit': S.editing=false;S.auth.error='';render();break;
     case 'save-profile': saveProfile();break;
     case 'logout':
-      stopLive();sb.auth.signOut().then(function(){S.reqDot=false;S.msgs=[];S.chat=[];S.unread=false;S.requests=[];S.cart=[];FILES={};S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
+      stopLive();(pushSupported()?disablePush().catch(function(){}):Promise.resolve()).then(function(){return sb.auth.signOut();}).then(function(){S.push=null;S.reqDot=false;S.msgs=[];S.chat=[];S.unread=false;S.requests=[];S.cart=[];FILES={};S.gate=true;S.editing=false;S.tab='home';S.stack=[];S.auth={mode:'login',busy:false,error:'',info:''};render();});
       break;
   }
 });
@@ -740,13 +786,14 @@ app.addEventListener('submit',function(e){
   }
   S.chat.push({me:t});render();
   var again=document.getElementById('chat-input');if(again)again.focus();
-  antoine('Bien reçu, '+S.user.first+'. Je m’en occupe et je reviens vers vous.');
+  abou('Bien reçu, '+S.user.first+'. Je m’en occupe et je reviens vers vous.');
 });
 
 if(DEMO){render();}
 else{
   document.querySelector('.stage-note').textContent='WTS Conciergerie';
   sb.auth.getSession().then(function(r){
+    var h=location.hash.replace('#','');if({requests:1,messages:1,profile:1}[h])S.tab=h;
     if(r.data&&r.data.session)return loadProfile(r.data.session);
     S.gate=true;
   }).catch(function(){S.gate=true;}).then(render);

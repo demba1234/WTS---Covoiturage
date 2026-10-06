@@ -3,5 +3,6 @@
    Laissées vides, l'app tourne en mode démo (données d'exemple). */
 window.WTS_CONFIG = {
   SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: ''
+  SUPABASE_ANON_KEY: '',
+  VAPID_PUBLIC_KEY: ''   /* clé publique des notifications (voir README, étape 7) */
 };

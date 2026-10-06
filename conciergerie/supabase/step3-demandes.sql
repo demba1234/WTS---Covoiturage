@@ -11,9 +11,9 @@ create table if not exists public.requests (
   title       text not null,
   sub         text not null default '',
   step        int  not null default 0 check (step between 0 and 3),   -- 0 Reçue · 1 En cours · 2 À valider · 3 Confirmé
-  notes       jsonb not null default '["","","",""]',       -- texte d'Antoine pour chaque étape
+  notes       jsonb not null default '["","","",""]',       -- texte d'Abou pour chaque étape
   step_times  jsonb not null default '[null,null,null,null]', -- date de chaque étape
-  proposal    jsonb,                                         -- {t, d, p} posé par Antoine
+  proposal    jsonb,                                         -- {t, d, p} posé par Abou
   recap       jsonb not null default '[]',                   -- [[libellé, valeur], …] saisi par le client
   attachments jsonb not null default '[]',                   -- [{label, name, path}]
   created_at  timestamptz not null default now()

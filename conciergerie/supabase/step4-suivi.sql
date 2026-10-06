@@ -59,6 +59,6 @@ do $$ begin
   alter publication supabase_realtime add table public.requests;
 exception when duplicate_object then null; when undefined_object then null; end $$;
 
--- Pour nommer Antoine : exécuter une fois, avec l'email de son compte (créé via l'app) :
+-- Pour nommer Abou : exécuter une fois, avec l'email de son compte (créé via l'app) :
 --   update public.profiles set role = 'concierge'
---    where id = (select id from auth.users where email = 'antoine@exemple.com');
+--    where id = (select id from auth.users where email = 'abou@exemple.com');

@@ -1,7 +1,7 @@
 {
   "name": "WTS Conciergerie",
   "short_name": "WTS",
-  "description": "Votre concierge personnel, Antoine.",
+  "description": "Votre concierge personnel, Abou.",
   "lang": "fr",
   "start_url": "./index.html",
   "scope": "./",

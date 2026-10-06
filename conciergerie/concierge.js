@@ -2,7 +2,7 @@
 'use strict';
 var CFG=window.WTS_CONFIG||{};
 var STATUS=['Reçue','En cours','À valider','Confirmé'];
-var STEPS=['Demande reçue','Antoine s’en occupe','Proposition prête','Confirmé'];
+var STEPS=['Demande reçue','Abou s’en occupe','Proposition prête','Confirmé'];
 var MOIS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 var root=document.getElementById('root'), toastEl=document.getElementById('toast'), toastT=null;
 var sb=(CFG.SUPABASE_URL&&CFG.SUPABASE_ANON_KEY&&window.supabase)?window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY):null;
@@ -39,7 +39,7 @@ function load(){
 function openSession(session){
   return sb.from('profiles').select('*').eq('id',session.user.id).maybeSingle().then(must).then(function(p){
     if(!p||p.role!=='concierge'){S.view='denied';return;}
-    S.me=p;S.view='main';return load().then(live);
+    S.me=p;S.view='main';refreshPush();return load().then(live);
   });
 }
 var rt=null,poll=null;
@@ -130,7 +130,7 @@ function detailHTML(){
   '<div class="c-box"><h2>Sa demande</h2><div class="kv">'+(recap||'<div><span class="k">—</span></div>')+'</div>'+(att?'<div class="c-att" style="margin-top:12px">'+att+'</div>':'')+'</div>'+
   '<div class="c-box"><h2>Suivi</h2><form id="edit" class="form" style="padding:0" novalidate>'+
   '<div class="fld"><div class="lab">Statut</div><div class="chips">'+STATUS.map(function(l,i){return '<button type="button" class="chip" data-a="step" data-v="'+i+'" aria-pressed="'+(d.step===i)+'">'+l+'</button>';}).join('')+'</div></div>'+
-  '<div class="fld"><label for="n1">Message « Antoine s’en occupe »</label><input type="text" id="n1" data-k="n1" value="'+esc(d.n1)+'" placeholder="ex. Vol, hôtel et transfert aéroport"></div>'+
+  '<div class="fld"><label for="n1">Message « Abou s’en occupe »</label><input type="text" id="n1" data-k="n1" value="'+esc(d.n1)+'" placeholder="ex. Vol, hôtel et transfert aéroport"></div>'+
   '<div class="fld"><label for="n2">Message « Proposition prête »</label><input type="text" id="n2" data-k="n2" value="'+esc(d.n2)+'" placeholder="ex. En attente de votre validation"></div>'+
   '<div class="fld"><label for="pt">Proposition : titre'+(d.step===2?' *':'')+'</label><input type="text" id="pt" data-k="pt" value="'+esc(d.pt)+'" placeholder="ex. Air Sénégal + Hôtel Opéra"></div>'+
   '<div class="fld"><label for="pd">Proposition : détail</label><textarea id="pd" data-k="pd" placeholder="ex. Vol aller-retour · 7 nuits · transferts">'+esc(d.pd)+'</textarea></div>'+
@@ -146,12 +146,36 @@ function paint(keepFocus){
   if(S.view==='login')return paintLogin(S.error);
   if(S.view==='denied')return paintDenied();
   var active=keepFocus&&document.activeElement&&document.activeElement.id, pos=active&&document.activeElement.selectionStart;
-  root.innerHTML='<div class="c-bar"><span class="brand">WTS CONCIERGERIE · ESPACE CONCIERGE</span><span class="row-flex"><span class="link">'+esc(S.me.first_name||'')+'</span><button class="link" data-a="logout">Se déconnecter</button></span></div>'+
+  root.innerHTML='<div class="c-bar"><span class="brand">WTS CONCIERGERIE · ESPACE CONCIERGE</span><span class="row-flex">'+(S.push==='off'?'<button class="link" data-a="push-on">Activer les notifications</button>':S.push==='on'?'<button class="link" data-a="push-off">Notifications activées ✓</button>':S.push==='denied'?'<span class="link">Notifications bloquées</span>':'')+'<span class="link">'+esc(S.me.first_name||'')+'</span><button class="link" data-a="logout">Se déconnecter</button></span></div>'+
     '<div class="c-grid'+(S.sel||S.selClient?' open':'')+'"><div class="c-list">'+listHTML()+'</div><div class="c-detail">'+detailHTML()+'</div></div>';
   var b=document.getElementById('backbtn'); if(b&&window.matchMedia('(max-width:760px)').matches)b.style.display='inline-block';
   var ct=document.getElementById('cthread');if(ct)ct.scrollTop=ct.scrollHeight;
   if(active){var el=document.getElementById(active);if(el){el.focus();if(pos!=null&&el.setSelectionRange)try{el.setSelectionRange(pos,pos);}catch(e){}}}
 }
+
+/* ---------- notifications push ---------- */
+function pushSupported(){return !!CFG.VAPID_PUBLIC_KEY&&'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;}
+function keyBytes(b64){var p=(b64+'='.repeat((4-b64.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'),r=atob(p),o=new Uint8Array(r.length);for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o;}
+function reg(){return navigator.serviceWorker.register('sw.js').then(function(){return navigator.serviceWorker.ready;});}
+function saveSub(sub){var j=sub.toJSON();return sb.rpc('save_push_subscription',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth}).then(function(r){if(r.error)throw r.error;});}
+function pushStatus(){
+  if(!pushSupported())return Promise.resolve('unsupported');
+  if(Notification.permission==='denied')return Promise.resolve('denied');
+  return reg().then(function(r){return r.pushManager.getSubscription();}).then(function(s){return s&&Notification.permission==='granted'?'on':'off';});
+}
+function enablePush(){
+  return Notification.requestPermission().then(function(p){if(p!=='granted')throw new Error('denied');return reg();})
+    .then(function(r){return r.pushManager.getSubscription().then(function(s){return s||r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(CFG.VAPID_PUBLIC_KEY)});});}).then(saveSub);
+}
+function disablePush(){
+  return reg().then(function(r){return r.pushManager.getSubscription();}).then(function(s){
+    if(!s)return;return sb.from('push_subscriptions').delete().eq('endpoint',s.endpoint).then(function(){return s.unsubscribe();});
+  });
+}
+function refreshPush(){pushStatus().then(function(s){if(S.push!==s){S.push=s;if(S.view==='main')paint(true);}});}
+if('serviceWorker' in navigator){navigator.serviceWorker.addEventListener('message',function(e){
+  if(e.data&&e.data.type==='nav')refresh();
+});}
 
 /* ---------- actions ---------- */
 function save(){
@@ -176,7 +200,9 @@ root.addEventListener('click',function(e){
   else if(a==='step'){S.draft.step=parseInt(v,10);S.dirty=true;S.error='';paint(true);}
   else if(a==='save'){e.preventDefault();save();}
   else if(a==='file'){e.preventDefault();sb.storage.from('documents').createSignedUrl(v,120).then(must).then(function(x){window.open(x.signedUrl,'_blank','noopener');}).catch(function(){toast('Fichier introuvable');});}
-  else if(a==='logout'){stopLive();sb.auth.signOut().then(function(){S=Object.assign(S,{view:'login',me:null,reqs:[],msgs:[],sel:null,selClient:null,draft:null,error:''});paint();});}
+  else if(a==='push-on'){enablePush().then(function(){S.push='on';paint(true);toast('Notifications activées');}).catch(function(err){S.push=/denied/.test(err&&err.message||'')?'denied':'off';paint(true);toast(S.push==='denied'?'Notifications refusées':'Activation impossible');});}
+  else if(a==='push-off'){disablePush().then(function(){S.push='off';paint(true);toast('Notifications désactivées');});}
+  else if(a==='logout'){stopLive();(pushSupported()?disablePush().catch(function(){}):Promise.resolve()).then(function(){return sb.auth.signOut();}).then(function(){S=Object.assign(S,{view:'login',me:null,reqs:[],msgs:[],sel:null,selClient:null,draft:null,error:''});paint();});}
 });
 root.addEventListener('input',function(e){
   var k=e.target.getAttribute&&e.target.getAttribute('data-k');if(k&&S.draft){S.draft[k]=e.target.value;S.dirty=true;}

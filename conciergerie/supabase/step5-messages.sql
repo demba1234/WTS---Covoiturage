@@ -1,14 +1,14 @@
--- WTS Conciergerie — étape 5 : messages entre le client et Antoine
+-- WTS Conciergerie — étape 5 : messages entre le client et Abou
 -- À exécuter dans Supabase > SQL Editor, après step4-suivi.sql.
 
--- Une conversation par client (client_id). Antoine écrit à n'importe quel client, un client n'écrit que dans la sienne.
+-- Une conversation par client (client_id). Abou écrit à n'importe quel client, un client n'écrit que dans la sienne.
 create table if not exists public.messages (
   id         uuid primary key default gen_random_uuid(),
   num        bigint generated always as identity,
   client_id  uuid not null default auth.uid() references public.profiles(id) on delete cascade,
   sender     text not null check (sender in ('client','concierge')),
   body       text not null default '' check (char_length(body) <= 2000),
-  options    jsonb check (options is null or jsonb_typeof(options) = 'array'),   -- [{t, d}] : choix proposés par Antoine
+  options    jsonb check (options is null or jsonb_typeof(options) = 'array'),   -- [{t, d}] : choix proposés par Abou
   held       int,                                                                -- option retenue par le client
   read_at    timestamptz,                                                        -- lu par l'autre personne
   created_at timestamptz not null default now(),
@@ -35,7 +35,7 @@ revoke all on public.messages from authenticated;
 grant select on public.messages to authenticated;
 grant insert (client_id, sender, body, options) on public.messages to authenticated;
 
--- « Lu » : le concierge marque les messages d'un client, le client marque ceux d'Antoine.
+-- « Lu » : le concierge marque les messages d'un client, le client marque ceux d'Abou.
 create or replace function public.mark_read(p_client uuid default null) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -48,7 +48,7 @@ end $$;
 revoke all on function public.mark_read(uuid) from public, anon;
 grant execute on function public.mark_read(uuid) to authenticated;
 
--- Le client retient l'une des options proposées par Antoine ; sa réponse apparaît dans la conversation.
+-- Le client retient l'une des options proposées par Abou ; sa réponse apparaît dans la conversation.
 create or replace function public.hold_option(p_msg uuid, p_idx int) returns public.messages
 language plpgsql security definer set search_path = public as $$
 declare m public.messages;
